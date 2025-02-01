@@ -19,12 +19,12 @@ class Client(UserClient):
 
     def team_data(self) -> tuple[str, tuple[SelectGeneric, SelectLeader, SelectGeneric]]:
         """
-        Returns your team name and a tuple of enums representing the characters you want for your team.
-        The tuple of the team must be ordered as (Generic, Leader, Generic). If an enum is not placed in the correct
-        order (e.g., (Generic, Leader, Leader)), whichever selection is incorrect will be swapped with a default value
-        of Generic Attacker.
+        Returns your team name (to be shown on visualizer) and a tuple of enums representing the characters you
+        want for your team. The tuple of the team must be ordered as (Generic, Leader, Generic). If an enum is not
+        placed in the correct order (e.g., (Generic, Leader, Leader)), whichever selection is incorrect will be
+        swapped with a default value of Generic Attacker.
         """
-        return 'Altruists', (SelectGeneric.GEN_TANK, SelectLeader.ANAHITA, SelectGeneric.GEN_ATTACKER)
+        return 'DEFENSE', (SelectGeneric.GEN_HEALER, SelectLeader.IRWIN, SelectGeneric.GEN_ATTACKER)
 
     def first_turn_init(self, team_manager: TeamManager):
         """
@@ -62,7 +62,8 @@ class Client(UserClient):
             return []
 
         # determine if the active character is healthy
-        current_state: State = State.HEALTHY if self.get_health_percentage(active_character) >= 0.50 else State.UNHEALTHY
+        current_state: State = State.HEALTHY if self.get_health_percentage(
+            active_character) >= 0.50 else State.UNHEALTHY
 
         actions: list[ActionType]
 
@@ -84,6 +85,6 @@ class Client(UserClient):
         characters than the opponent.
         """
 
-        active_character: Character = team_manager.get_active_character(world.ordered_teams, world.active_pair_index)
+        active_character = team_manager.get_active_character(world.ordered_teams, world.active_pair_index)
 
         return active_character

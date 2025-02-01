@@ -24,7 +24,7 @@ class Client(UserClient):
         placed in the correct order (e.g., (Generic, Leader, Leader)), whichever selection is incorrect will be
         swapped with a default value of Generic Attacker.
         """
-        return 'DEFENSE', (SelectGeneric.GEN_HEALER, SelectLeader.IRWIN, SelectGeneric.GEN_ATTACKER)
+        return 'Jade Orbiters', (SelectGeneric.GEN_TANK, SelectLeader.FULTRA, SelectGeneric.GEN_TANK)
 
     def first_turn_init(self, team_manager: TeamManager):
         """
@@ -65,17 +65,6 @@ class Client(UserClient):
         current_state: State = State.HEALTHY if self.get_health_percentage(
             active_character) >= 0.50 else State.UNHEALTHY
 
-        actions: list[ActionType]
-
-        if current_state == State.HEALTHY:
-            # if the active character from my team is healthy, use its Normal Move
-            actions = [ActionType.USE_NM]
-        else:
-            # if unhealthy, randomly decide to swap in a direction or use special 1
-            action: ActionType = random.choice([ActionType.SWAP_UP, ActionType.SWAP_DOWN, ActionType.USE_NM])
-
-            actions = [action]
-
         return actions
 
     def get_my_active_char(self, team_manager: TeamManager, world: GameBoard) -> Character | None:
@@ -88,3 +77,56 @@ class Client(UserClient):
         active_character = team_manager.get_active_character(world.ordered_teams, world.active_pair_index)
 
         return active_character
+
+    def take_action_based_on_character(self, character: Character, turn: int, world: GameBoard) -> list[ActionType] | None:
+        opponent = self.get_opponent(character, world)
+        healthy: bool = character.max_health - character.current_health <= (230 if character.name == 'Fultra' else 100)
+
+        if turn >= 2:
+            if character.name == 'Fultra':
+                if turn == 2:
+                    # Attempt Swap
+                    pass
+                else:
+                    # - If opponent Dead
+                    if opponent is None:
+                        # if SP > 2 & 200 below max health
+                        if character.special_points > 2 and not healthy:
+                            # Heal
+                            return [ActionType.USE_S1]
+                        else:
+                            # else swap
+                            return [ActionType.SWAP_UP] # CHANGE ME
+
+                    # If SP < 2
+                    if character.special_points < 2:
+                        # Normal Attack
+                        return [ActionType.USE_NM]
+
+                    # If 200 below max health
+                    if not healthy:
+                        # Heal
+                        return [ActionType.USE_S1]
+
+                    # If SP >= 5
+                    if character.special_points >= 5:
+                        # Special 2
+                        return [ActionType.USE_S2]
+                    return [ActionType.USE_NM]
+
+            elif character.name == 'Tank':
+                pass
+
+        elif turn == 1:
+            return [ActionType.USE_NM]
+
+        else:
+            return [ActionType.USE_NM]
+
+    def get_opponent(self, character: Character, world: GameBoard) -> Character | None:
+        if character.position is not None:
+            target_spot = character.position.add_x(1)
+            char = world.get_top(target_spot)
+            if char is Character:
+                return char
+        return None
