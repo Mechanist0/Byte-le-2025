@@ -1,7 +1,7 @@
 import random
 
 from game.client.user_client import UserClient
-from game.commander_clash.character.character import Character
+from game.commander_clash.character.character import Character, Leader
 from game.common.enums import *
 from game.utils.vector import *
 from game.common.map.game_board import GameBoard
@@ -25,7 +25,7 @@ class Client(UserClient):
         placed in the correct order (e.g., (Generic, Leader, Leader)), whichever selection is incorrect will be
         swapped with a default value of Generic Attacker.
         """
-        return 'Jade Orbiters', (SelectGeneric.GEN_TANK, SelectLeader.FULTRA, SelectGeneric.GEN_TANK)
+        return 'Jade Orbiters', (SelectGeneric.GEN_TANK, SelectLeader.FULTRA, SelectGeneric.GEN_HEALER)
 
     def first_turn_init(self, team_manager: TeamManager):
         """
@@ -73,30 +73,38 @@ class Client(UserClient):
 
     def take_action_based_on_character(self, character: Character, turn: int, world: GameBoard) -> list[ActionType] | None:
         if character is not None:
-
             opponent = self.get_opponent(character, world)
             healthy: bool = character.max_health - character.current_health <= (230 if character.name == 'Fultra' else 100)
-
             if turn >= 2:
                 if character.rank_type is RankType.LEADER:
                     if turn == 2:
-                        # Attempt Swap
                         pass
                     else:
+                        action = self.swap_to_char(character, ClassType.HEALER, world)
+                        if action:
+                            return action
+
+                        opp = self.get_opp_dead(character, world)
+                        if opp is not int:
+                            action = self.swap_to_char(character, opp, world)
+                            if action:
+                                return action
+
                         # If SP < 2
                         if character.special_points < 2:
                             # Normal Attack
                             return [ActionType.USE_NM]
 
+
                         # - If opponent Dead
-                        if opponent is None:
-                            # if SP > 2 & 200 below max health
-                            if character.special_points > 2 and not healthy:
-                                # Heal
-                                return [ActionType.USE_S1]
-                            else:
-                                # else swap
-                                return [ActionType.SWAP_UP] # CHANGE ME
+                        # if opponent is None:
+                        #     # if SP > 2 & 200 below max health
+                        #     if character.special_points > 2 and not healthy:
+                        #         # Heal
+                        #         return [ActionType.USE_S1]
+                        #     else:
+                        #         # else swap
+                        #         return [ActionType.SWAP_UP] # CHANGE ME
 
                         # If 200 below max health
                         if not healthy:
@@ -110,10 +118,32 @@ class Client(UserClient):
                         return [ActionType.USE_NM]
 
                 elif character.class_type == ClassType.TANK:
-                    if character.special_points < 2:
+
+                    # opp = self.get_opp_dead(character, world)
+                    # if opp is not int:
+                    #     action = self.swap_to_char(character, opp, world)
+                    #     if action:
+                    #         return action
+
+                    if character.special_points < 3:
                         return [ActionType.USE_NM]
+                    elif character.special_points == 3:
+                        return [ActionType.USE_S2]
                     if not healthy:
                         return self.swap_empty(character, world)
+
+                elif character.class_type == ClassType.HEALER:
+                    # opp = self.get_opp_dead(character, world)
+                    # if opp > 1:
+                    #     action = self.swap_to_char(character, opp, world)
+                    #     if action:
+                    #         return action
+                    if character.special_points < 3:
+                        return [ActionType.USE_NM]
+                    elif character.special_points == 3:
+                        return [ActionType.USE_S2]
+                    if not healthy:
+                        return [ActionType.USE_S1]
 
             elif turn == 1:
                 return [ActionType.USE_NM]
@@ -159,13 +189,75 @@ class Client(UserClient):
                 # Swap Up
             # Else
                 # Swap Down
-        pass
 
     # Swap to character
     def swap_to_char(self, current: Character, target: ClassType, world: GameBoard):
-        target_pos = Vector(1, 0)
-        target_pos = Vector(1, 1)
-        target_pos = Vector(1, 2)
+        if current.position is not None:
+            target_pos = None
+            target_pos0 = Vector(0 if current.position.x == 1 else 1, 0)
+            target_pos1 = Vector(0 if current.position.x == 1 else 1, 1)
+            target_pos2 = Vector(0 if current.position.x == 1 else 1, 2)
+
+            target_pos_opp = Vector(0 if current.position.x == 1 else 1, current.position.y)
+
+            char_at_0: Character | None = world.get_character_from(target_pos0)
+            char_at_1: Character | None = world.get_character_from(target_pos1)
+            char_at_2: Character | None = world.get_character_from(target_pos2)
+            char_at_opp: Character | None = world.get_character_from(target_pos_opp)
+
+            if char_at_0 is not None:
+                if char_at_0.class_type == target:
+                    target_pos = target_pos0
+
+            if char_at_1 is not None:
+                if char_at_1.class_type == target:
+                    target_pos = target_pos1
+
+            if char_at_2 is not None:
+                if char_at_2.class_type == target:
+                    target_pos = target_pos2
+
+            if target_pos:
+                diff: Vector = self.sub_vectors(target_pos, current.position)
+                print(str(target_pos) + " " + str(current.position))
+
+                if(diff.y > 0):
+                    return [ActionType.SWAP_UP]
+                elif(diff.y < 0):
+                    return [ActionType.SWAP_DOWN]
+                else:
+                    return None
+
 
     def sub_vectors(self, vect1: Vector, vect2: Vector) -> Vector:
         return Vector(vect2.x - vect1.x, vect2.y - vect1.y)
+
+    def get_opp_dead(self, current: Character, world: GameBoard) -> int | ClassType:
+        num_dead: int = 0
+        if current.position is not None:
+            target_pos0 = Vector(0 if current.position.x == 1 else 1, 0)
+            target_pos1 = Vector(0 if current.position.x == 1 else 1, 1)
+            target_pos2 = Vector(0 if current.position.x == 1 else 1, 2)
+
+            char_at_0: Character | None = world.get_character_from(target_pos0)
+            char_at_1: Character | None = world.get_character_from(target_pos1)
+            char_at_2: Character | None = world.get_character_from(target_pos2)
+
+            if char_at_0:
+                num_dead += 1
+
+            if char_at_1:
+                num_dead += 1
+
+            if char_at_2:
+                num_dead += 1
+
+            if num_dead == 1:
+                if char_at_0:
+                    return char_at_0.class_type
+                if char_at_1:
+                    return char_at_1.class_type
+                if char_at_2:
+                    return char_at_2.class_type
+
+        return num_dead

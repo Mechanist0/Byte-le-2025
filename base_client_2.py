@@ -5,6 +5,7 @@ from game.commander_clash.character.character import Character
 from game.common.enums import *
 from game.common.map.game_board import GameBoard
 from game.common.team_manager import TeamManager
+from game.utils.vector import Vector
 
 
 class State(Enum):
@@ -57,26 +58,7 @@ class Client(UserClient):
         # get your active character for the turn; may be None
         active_character: Character = self.get_my_active_char(team_manager, world)
 
-        # if there is no active character for my team on this current turn, return an empty list
-        if active_character is None:
-            return []
-
-        # determine if the active character is healthy
-        current_state: State = State.HEALTHY if self.get_health_percentage(
-            active_character) >= 0.50 else State.UNHEALTHY
-
-        actions: list[ActionType]
-
-        if current_state == State.HEALTHY:
-            # if the active character from my team is healthy, use its Normal Move
-            actions = [ActionType.USE_NM]
-        else:
-            # if unhealthy, randomly decide to swap in a direction or use special 1
-            action: ActionType = random.choice([ActionType.SWAP_UP, ActionType.SWAP_DOWN, ActionType.USE_NM])
-
-            actions = [action]
-
-        return actions
+        return self.take_action_based_on_character(active_character, turn, world)
 
     def get_my_active_char(self, team_manager: TeamManager, world: GameBoard) -> Character | None:
         """
@@ -88,3 +70,108 @@ class Client(UserClient):
         active_character = team_manager.get_active_character(world.ordered_teams, world.active_pair_index)
 
         return active_character
+
+    def take_action_based_on_character(self, character: Character, turn: int, world: GameBoard) -> list[ActionType] | None:
+        if character is not None:
+
+            opponent = self.get_opponent(character, world)
+            healthy: bool = character.max_health - character.current_health <= (230 if character.name == 'Fultra' else 100)
+
+            if turn >= 2:
+                if character.rank_type is RankType.LEADER:
+                    if turn == 2:
+                        # Attempt Swap
+                        pass
+                    else:
+                        # If SP < 2
+                        if character.special_points < 2:
+                            # Normal Attack
+                            return [ActionType.USE_NM]
+
+                        # - If opponent Dead
+                        # if opponent is None:
+                        #     # if SP > 2 & 200 below max health
+                        #     if character.special_points > 2 and not healthy:
+                        #         # Heal
+                        #         return [ActionType.USE_S1]
+                        #     else:
+                        #         # else swap
+                        #         return [ActionType.SWAP_UP] # CHANGE ME
+
+                        # If 200 below max health
+                        if not healthy:
+                            # Heal
+                            return [ActionType.USE_S1]
+
+                        # # If SP >= 5
+                        # if character.special_points >= 5:
+                        #     # Special 2
+                        #     return [ActionType.USE_S2]
+                        return [ActionType.USE_NM]
+
+                elif character.class_type == ClassType.TANK:
+                    if character.special_points < 3:
+                        return [ActionType.USE_NM]
+                    elif character.special_points == 3:
+                        pass
+                        # return [ActionType.USE_S2]
+                    if not healthy:
+                        return self.swap_empty(character, world)
+
+            elif turn == 1:
+                return [ActionType.USE_NM]
+
+            else:
+                return [ActionType.USE_NM]
+
+    def get_opponent(self, character: Character, world: GameBoard) -> Character | None:
+        if character.position is not None:
+            if character.position.x == 0:
+                target_spot = character.position.add_x(1)
+            else:
+                target_spot = character.position.add_x(-1)
+
+            char = world.get_character_from(target_spot)
+
+            if char is Character:
+                return char
+        return None
+
+    # Swap to empty
+    def swap_empty(self, current: Character, world: GameBoard):
+        if current.position is not None:
+            target_spot = current.position
+
+            if current.position.x == 0:
+                target_spot = current.position.add_x(1)
+            else:
+                target_spot = current.position.add_x(-1)
+
+            # Is slot empty
+            target_spot.y = 0
+            if world.get_character_from(target_spot) == None:
+                diff: Vector = self.sub_vectors(target_spot, current.position)
+                if(diff.y > 0):
+                    return [ActionType.SWAP_UP]
+                elif(diff.y < 0):
+                    return [ActionType.SWAP_DOWN]
+
+            # Find empty Slot
+            # If slot > 1 from current, Ignore
+            # If slot +
+                # Swap Up
+            # Else
+                # Swap Down
+        pass
+
+    # Swap to character
+    def swap_to_char(self, current: Character, target: ClassType, world: GameBoard):
+        target_pos = Vector(1, 0)
+        target_pos = Vector(1, 1)
+        target_pos = Vector(1, 2)
+
+        if world.get_character_from(target_pos):
+            pass
+
+    def sub_vectors(self, vect1: Vector, vect2: Vector) -> Vector:
+        return Vector(vect2.x - vect1.x, vect2.y - vect1.y)
